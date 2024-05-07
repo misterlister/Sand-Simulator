@@ -39,8 +39,8 @@ function makeGrid(num_cols, num_rows, square_size) {
 }
 
 function drawGrid(grid) {
-    for (let i = 0; i < grid.cols; i++) {
-        for (let j = 0; j < grid.rows; j++) {
+    for (let i = 0; i < COLS; i++) {
+        for (let j = 0; j < ROWS; j++) {
             noStroke()
             if (grid.arr[i][j] === 1) {
                 fill(194, 178, 128)
@@ -53,15 +53,15 @@ function drawGrid(grid) {
 }
 
 function getNextGrid(grid) {
-    let nextGrid = makeGrid(grid.cols, grid.rows, grid.sq_size)
-    for (let i = 0; i < grid.cols; i++) {
-        for (let j = 0; j < grid.rows; j++) {
+    let nextGrid = makeGrid(COLS, ROWS, grid.sq_size)
+    for (let i = 0; i < COLS; i++) {
+        for (let j = 0; j < ROWS; j++) {
             let state = grid.arr[i][j]
             // check if this space has sand
             if (state === 1) {
                 nextGrid.arr[i][j] = 1
                 // don't move if this space is at the bottom of the grid
-                if (j+1 < grid.rows) {
+                if (j+1 < ROWS) {
                     let below = grid.arr[i][j+1]
                     // if the space beneath is empty, then move this grain down
                     if (below === 0) {
@@ -73,7 +73,7 @@ function getNextGrid(grid) {
                         if (i-1 > 0) {
                             belowL = grid.arr[i-1][j+1]
                         }
-                        if (i+1 < grid.cols) {
+                        if (i+1 < COLS) {
                             belowR = grid.arr[i+1][j+1]
                         }
                         if (belowL === 0 && belowR === 0) {
@@ -112,5 +112,51 @@ function mouseDragged() {
                 }
             }
         }
+    }
+}
+
+class gridSpace {
+    constructor() {
+        this.state = 0
+        this.speed = 0
+        this.resting = false
+    }
+
+    changeState(state) {
+        this.state = state
+    }
+
+    speedUp() {
+        this.speed ++
+    }
+
+    setSpeed(speed) {
+        this.speed = speed
+    }
+
+    rest() {
+        this.speed = 0
+        this.resting = true
+    }
+
+    getState() {
+        return this.state
+    }
+
+    getSpeed() {
+        return this.speed
+    }
+
+    isResting() {
+        return this.resting
+    }
+
+    swap(otherSpace) {
+        tempState = this.state
+        tempSpeed = this.speed
+        this.state = otherSpace.getState()
+        this.speed = otherSpace.getSpeed()
+        otherSpace.changeState(tempState)
+        otherSpace.setSpeed(tempSpeed)
     }
 }
