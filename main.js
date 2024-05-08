@@ -2,11 +2,11 @@
 const COLS = 500
 const ROWS = 200
 // size of grains of sand
-const SQSIZE = 5
+const SQSIZE = 3
 // radius of sand generation
-const RADIUS = 2
+const RADIUS = 3
+const MAXSPEED = 8
 let grid
-
 
 function setup() {
     createCanvas(COLS * SQSIZE, ROWS * SQSIZE)
@@ -55,12 +55,19 @@ function drawGrid(grid) {
 }
 
 function getNextGrid(grid) {
-    let nextGrid = makeGrid(grid)
+let nextGrid = makeGrid(grid)
     // iterate through columns
     for (let i = 0; i < COLS; i++) {
         // iterate rows from the bottom up
-        for (let j = ROWS - 2; j >= 0; j--) {
+        for (let j = 0; j < ROWS -1; j++) {
             checkGridSpace(nextGrid[i][j], nextGrid)
+        }
+    }
+
+    for (let i = 0; i < COLS; i++) {
+        // iterate rows from the bottom up
+        for (let j = 0; j < ROWS -1; j++) {
+            nextGrid[i][j].resetMoved()
         }
     }
     return nextGrid
@@ -69,14 +76,16 @@ function getNextGrid(grid) {
 function checkGridSpace(space, nextGrid) {
     // if this space is empty, return
     if (space.getState() === 0) return
-    // if this space is resting, return
+    // if this grain is resting, return
     if (space.isResting()) return
+    if (space.hasMoved()) return
     space.speedUp()
     newSpace = moveSand(space, nextGrid)
     space.swap(newSpace)
 }
 
 function moveSand(space, nextGrid) {
+    space.setMoved()
     let col = space.getCol()
     let row = space.getRow()
     let distance = space.getSpeed()
@@ -112,19 +121,17 @@ function moveSand(space, nextGrid) {
                 if (belowL === 0) {
                     col --
                     row ++
-                }
-                else {
+                } else {
                     col ++
                     row ++
-                }
+                } 
             }
         // otherwise the space is free, and the grain can move down
         } else {
             distance --
             row ++
         }
-        nextSpace = nextGrid[col][row]
-        newSpace = nextSpace
+        newSpace = nextGrid[col][row]
         // if this grain has reached the bottom, then it should stop
         if (newSpace.getRow() === ROWS-1) {
             newSpace.rest()
@@ -157,6 +164,7 @@ class GridSpace {
         this.state = state
         this.speed = speed
         this.resting = resting
+        this.moved = false
     }
 
     getCol() {
@@ -179,6 +187,10 @@ class GridSpace {
         return this.resting
     }
 
+    hasMoved() {
+        return this.moved
+    }
+
     setCol(col) {
         this.col = col
     }
@@ -192,7 +204,9 @@ class GridSpace {
     }
 
     speedUp() {
-        this.speed ++
+        if (this.speed < MAXSPEED) {
+            this.speed ++
+        }
     }
 
     setSpeed(speed) {
@@ -204,12 +218,26 @@ class GridSpace {
         this.resting = true
     }
 
+    setMoved() {
+        this.moved = true
+    }
+
+    resetMoved() {
+        this.moved = false
+    }
+
     swap(otherSpace) {
         let tempState = this.state
         let tempSpeed = this.speed
+        let tempMoved = this.moved
         this.state = otherSpace.getState()
         this.speed = otherSpace.getSpeed()
+        this.moved = otherSpace.hasMoved()
         otherSpace.setState(tempState)
         otherSpace.setSpeed(tempSpeed)
+        if (tempMoved) {
+            otherSpace.setMoved()
+        }
+        
     }
 }
