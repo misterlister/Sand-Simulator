@@ -1,16 +1,16 @@
 // number of columns and rows in the grid
-const COLS = 300
-const ROWS = 100
+const COLS = 500
+const ROWS = 200
 // size of grains of sand
-const SQSIZE = 10
+const SQSIZE = 5
 // radius of sand generation
-const RADIUS = 1
+const RADIUS = 2
 let grid
 
 
 function setup() {
     createCanvas(COLS * SQSIZE, ROWS * SQSIZE)
-    grid = makeGrid(COLS, ROWS, SQSIZE)
+    grid = makeGrid()
 }
 
 function draw() {
@@ -19,20 +19,22 @@ function draw() {
     grid = getNextGrid(grid)
 }
 
-function makeGrid(num_cols, num_rows, square_size) {
+function makeGrid(copy = null) {
     // create grid
-    const grid = {
-        cols: num_cols,
-        rows: num_rows,
-        sq_size: square_size,
-        arr: []
-    }
-    grid.arr = new Array(num_cols)
-    for (let i = 0; i < num_cols; i++) {
-        grid.arr[i] = new Array(num_rows)
-        // initialize each square to 0
-        for (let j = 0; j < num_rows; j++) {
-            grid.arr[i][j] = 0
+    let grid = new Array(COLS)
+    for (let i = 0; i < COLS; i++) {
+        grid[i] = new Array(ROWS)
+        // initialize each square
+        for (let j = 0; j < ROWS; j++) {
+            state = 0
+            speed = 0
+            resting = false
+            if (copy != null) {
+                state = copy[i][j].getState()
+                speed = copy[i][j].getSpeed()
+                resting = copy[i][j].isResting()
+            }
+            grid[i][j] = new GridSpace(i, j, state, speed, resting)
         }
     }
     return grid
@@ -42,61 +44,94 @@ function drawGrid(grid) {
     for (let i = 0; i < COLS; i++) {
         for (let j = 0; j < ROWS; j++) {
             noStroke()
-            if (grid.arr[i][j] === 1) {
+            if (grid[i][j].getState() === 1) {
                 fill(194, 178, 128)
-                let x = i * grid.sq_size
-                let y = j * grid.sq_size
-                square(x, y, grid.sq_size)
+                let x = i * SQSIZE
+                let y = j * SQSIZE
+                square(x, y, SQSIZE)
             }
         }
     }
 }
 
 function getNextGrid(grid) {
-    let nextGrid = makeGrid(COLS, ROWS, grid.sq_size)
+    let nextGrid = makeGrid(grid)
+    // iterate through columns
     for (let i = 0; i < COLS; i++) {
-        for (let j = 0; j < ROWS; j++) {
-            let state = grid.arr[i][j]
-            // check if this space has sand
-            if (state === 1) {
-                nextGrid.arr[i][j] = 1
-                // don't move if this space is at the bottom of the grid
-                if (j+1 < ROWS) {
-                    let below = grid.arr[i][j+1]
-                    // if the space beneath is empty, then move this grain down
-                    if (below === 0) {
-                        nextGrid.arr[i][j] = 0
-                        nextGrid.arr[i][j+1] = 1
-                    } else {
-                        let belowL = -1
-                        let belowR = -1
-                        if (i-1 > 0) {
-                            belowL = grid.arr[i-1][j+1]
-                        }
-                        if (i+1 < COLS) {
-                            belowR = grid.arr[i+1][j+1]
-                        }
-                        if (belowL === 0 && belowR === 0) {
-                            let dir = random([-1, 1])
-                            nextGrid.arr[i][j] = 0
-                            nextGrid.arr[i][j+dir] = 1
-                        } else {
-                            if (belowL === 0) {
-                                nextGrid.arr[i][j] = 0
-                                nextGrid.arr[i-1][j+1] = 1
-                            }
-                            if (belowR === 0) {
-                                nextGrid.arr[i][j] = 0
-                                nextGrid.arr[i+1][j+1] = 1
-                            }
-                        }
-                        
-                    }
-                }
-            }
+        // iterate rows from the bottom up
+        for (let j = ROWS - 2; j >= 0; j--) {
+            checkGridSpace(nextGrid[i][j], nextGrid)
         }
     }
     return nextGrid
+}
+
+function checkGridSpace(space, nextGrid) {
+    // if this space is empty, return
+    if (space.getState() === 0) return
+    // if this space is resting, return
+    if (space.isResting()) return
+    space.speedUp()
+    newSpace = moveSand(space, nextGrid)
+    space.swap(newSpace)
+}
+
+function moveSand(space, nextGrid) {
+    let col = space.getCol()
+    let row = space.getRow()
+    let distance = space.getSpeed()
+    let newSpace = space
+    // look below for empty spaces while this grain has more distance to travel
+    while (distance > 0) {
+        let nextSpace = nextGrid[col][row+1]
+        // if the next space isn't free, check the spaces to the side
+        if (nextSpace.getState() != 0) {
+            distance --
+            let belowL = -1 // sentinel value
+            let belowR = -1 // sentinel value
+            if (col-1 >= 0) {
+                belowL = nextGrid[col-1][row+1].getState()
+            }
+            if (col+1 < COLS) {
+                belowR = nextGrid[col+1][row+1].getState()
+            }
+            // if neither space is available, return the last free space
+            if (belowL != 0 && belowR != 0) {
+                if (nextSpace.isResting()) {
+                    newSpace.rest()
+                }
+                return newSpace
+            }
+            // if both are free, then pick one randomly
+            if (belowL === 0 && belowR === 0) {
+                let dir = random([-1, 1])
+                col += dir
+                row ++
+            // otherwise choose the one that is free
+            } else {
+                if (belowL === 0) {
+                    col --
+                    row ++
+                }
+                else {
+                    col ++
+                    row ++
+                }
+            }
+        // otherwise the space is free, and the grain can move down
+        } else {
+            distance --
+            row ++
+        }
+        nextSpace = nextGrid[col][row]
+        newSpace = nextSpace
+        // if this grain has reached the bottom, then it should stop
+        if (newSpace.getRow() === ROWS-1) {
+            newSpace.rest()
+            return newSpace
+        }
+    }
+    return newSpace
 }
 
 function mouseDragged() {
@@ -108,21 +143,51 @@ function mouseDragged() {
             let row = mouseRow + j
             if (col < COLS && col >= 0 && row < ROWS && row >= 0) {
                 if (random(1) < 0.75){
-                    grid.arr[col][row] = 1
+                    grid[col][row].setState(1)
                 }
             }
         }
     }
 }
 
-class gridSpace {
-    constructor() {
-        this.state = 0
-        this.speed = 0
-        this.resting = false
+class GridSpace {
+    constructor(col, row, state, speed, resting) {
+        this.col = col
+        this.row = row
+        this.state = state
+        this.speed = speed
+        this.resting = resting
     }
 
-    changeState(state) {
+    getCol() {
+        return this.col
+    }
+
+    getRow() {
+        return this.row
+    }
+
+    getState() {
+        return this.state
+    }
+
+    getSpeed() {
+        return this.speed
+    }
+
+    isResting() {
+        return this.resting
+    }
+
+    setCol(col) {
+        this.col = col
+    }
+
+    setRow(row) {
+        this.row = row
+    }
+
+    setState(state) {
         this.state = state
     }
 
@@ -139,24 +204,12 @@ class gridSpace {
         this.resting = true
     }
 
-    getState() {
-        return this.state
-    }
-
-    getSpeed() {
-        return this.speed
-    }
-
-    isResting() {
-        return this.resting
-    }
-
     swap(otherSpace) {
-        tempState = this.state
-        tempSpeed = this.speed
+        let tempState = this.state
+        let tempSpeed = this.speed
         this.state = otherSpace.getState()
         this.speed = otherSpace.getSpeed()
-        otherSpace.changeState(tempState)
+        otherSpace.setState(tempState)
         otherSpace.setSpeed(tempSpeed)
     }
 }
